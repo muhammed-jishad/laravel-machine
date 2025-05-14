@@ -57,12 +57,19 @@ class User extends Authenticatable
         return $this->hasMany(Project::class); // Projects owned by the user
     }
 
-    public function collaborations(): BelongsToMany
+    public function invitedProjects(): BelongsToMany
     {
-        return $this->belongsToMany(Project::class, 'project_user'); // Projects the user collaborates on
+        return $this->belongsToMany(Project::class, 'project_members')
+            ->withPivot('status', 'joined_at')
+            ->withTimestamps();
     }
 
-    public function tasks(): HasMany
+    public function projectInvitations(): HasMany
+    {
+        return $this->hasMany(ProjectInvitation::class);
+    }
+
+    public function assignedTasks(): HasMany
     {
         return $this->hasMany(Task::class, 'assigned_user_id'); // Tasks assigned to the user
     }

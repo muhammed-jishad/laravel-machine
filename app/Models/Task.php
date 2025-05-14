@@ -6,10 +6,11 @@ use App\Models\User;
 use App\Models\Comment;
 use App\Models\Project;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Task extends Model
 {
-   
     use HasFactory;
 
     protected $fillable = [
@@ -18,6 +19,10 @@ class Task extends Model
         'project_id',
         'assigned_user_id',
         'status',
+    ];
+
+    protected $casts = [
+        'due_date' => 'datetime'
     ];
 
     public function project()
@@ -30,8 +35,8 @@ class Task extends Model
         return $this->belongsTo(User::class, 'assigned_user_id');
     }
 
-    public function comments()
+    public function comments(): HasMany
     {
-        return $this->hasMany(Comment::class);
+        return $this->hasMany(TaskComment::class);
     }
 }
