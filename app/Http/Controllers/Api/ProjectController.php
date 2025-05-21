@@ -1,7 +1,7 @@
 <?php
 
 namespace App\Http\Controllers\Api;
-
+use Illuminate\Support\Facades\DB;
 use App\Http\Controllers\Controller;
 use App\Models\Project;
 use Illuminate\Http\Request;
@@ -54,11 +54,17 @@ class ProjectController extends Controller
     /**
      * Display the specified project.
      */
-    public function show(Project $project)
+    public function show($id)
     {
+         $project = Project::find($id);
+
+
+    if (!$project) {
+        return response()->json(['message' => 'Project not found'], 404);
+    }
+
         $user = Auth::user();
         
-        // Check if user owns the project or is invited
         if ($project->user_id !== $user->id && !$project->members()->where('user_id', $user->id)->exists()) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
@@ -67,101 +73,110 @@ class ProjectController extends Controller
         return response()->json($project);
     }
 
-    /**
-     * Update the specified project in storage.
-     */
-    public function update(Request $request, Project $project)
-    {
-        $user = Auth::user();
-        
-        // Check if user owns the project or is an accepted member
-        if ($project->user_id !== $user->id && !$project->members()->where('user_id', $user->id)->where('status', 'accepted')->exists()) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
+    
+    public function update(Request $request, $id)
+{
+    $user = Auth::user();
+    $project = Project::find($id);
 
-        $request->validate([
-            'name' => 'required|string|max:255',
-            'description' => 'required|string'
-        ]);
-
-        $project->update($request->all());
-        return response()->json($project);
+    if (!$project) {
+        return response()->json(['message' => 'Project not found'], 404);
     }
 
-    /**
-     * Remove the specified project from storage.
-     */
-    public function destroy(Project $project)
-    {
-        if ($project->user_id !== Auth::id()) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
-
-        $project->delete();
-        return response()->json(null, 204);
+    if ($project->user_id !== $user->id && !$project->members()->where('user_id', $user->id)->where('status', 'accepted')->exists()) {
+        return response()->json(['message' => 'Unauthorized'], 403);
     }
 
-    public function inviteUser(Request $request, Project $project)
-    {
-        $request->validate([
-            'email' => 'nullable|email',
-            'user_id' => 'nullable|exists:users,id',
-        ]);
+    $request->validate([
+        'name' => 'required|string|max:255',
+        'description' => 'required|string'
+    ]);
 
-        // Ensure at least one is provided
-        if (!$request->email && !$request->user_id) {
-            return response()->json(['message' => 'Either email or user_id is required.'], 422);
-        }
+    $project->update($request->all());
+    return response()->json($project);
+}
 
-        $user = null;
-        $email = $request->email;
 
-        if ($request->user_id) {
-            $user = User::find($request->user_id);
-            $email = $user->email;
-        } elseif ($request->email) {
-            $user = User::where('email', $request->email)->first();
-        }
+    
+public function destroy($id)
+{
+    $project = Project::find($id);
 
-        if (!$email) {
-            return response()->json(['message' => 'Email is required if user_id is not provided.'], 422);
-        }
 
-        $token = Str::random(40);
+    if (!$project) {
+        return response()->json(['message' => 'Project not found'], 404);
+    }
 
-        // Save invitation
-        
+    if ($project->user_id !== Auth::id()) {
+        return response()->json(['message' => 'Unauthorized'], 403);
+    }
 
-        try {
-            if ($user) {
-                Mail::raw('This is a test email from Laravel', function($message) {
-                $message->to('shajishad5@gmail.com')
-                        ->subject('Test Email');});
-                
-            } else {
-               Mail::raw('This is a test email from Laravel', function($message) {
-                $message->to('shajishad5@gmail.com')
-                        ->subject('Test Email');
+    $project->delete();
+
+    return response()->json(null, 204);
+}
+
+public function inviteUser(Request $request, Project $project)
+{
+    $request->validate([
+        'email' => 'nullable|email',
+        'user_id' => 'nullable|exists:users,id',
+    ]);
+
+    if (!$request->email && !$request->user_id) {
+        return response()->json(['message' => 'Either email or user_id is required.'], 422);
+    }
+
+    $user = null;
+    $email = $request->email;
+
+    if ($request->user_id) {
+        $user = User::find($request->user_id);
+        $email = $user->email;
+    } elseif ($request->email) {
+        $user = User::where('email', $request->email)->first();
+    }
+
+    if (!$email) {
+        return response()->json(['message' => 'Email is required if user_id is not provided.'], 422);
+    }
+
+    $token = Str::random(40);
+
+    $invitation = ProjectInvitation::create([
+        'project_id' => $project->id,
+        'email' => $email,
+        'token' => $token,
+        'user_id' => $user ? $user->id : null,
+        'status' => 'pending',  // Assuming you track status
+    ]);
+
+    try {
+        if ($user) {
+            Mail::raw('You are invited to join our exciting new project.', function ($message) use ($email) {
+                $message->to($email)
+                    ->subject('Project Email');
             });
-                // Send to email directly if user not registered
-                \Log::info('Notification sent to unregistered email');
-            }
-
-            return response()->json(['message' => 'Invitation sent!']);
-        } catch (\Exception $e) {
-            \Log::error('Failed to send invitation', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-                'email' => $email,
-                'project_id' => $project->id
-            ]);
-
-            return response()->json([
-                'message' => 'Failed to send invitation',
-                'error' => $e->getMessage()
-            ], 500);
+        } else {
+            // 
+            \Log::info('Notification sent to unregistered email');
         }
+
+        return response()->json(['message' => 'Invitation sent!', 'invitation' => $invitation]);
+    } catch (\Exception $e) {
+        \Log::error('Failed to send invitation', [
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString(),
+            'email' => $email,
+            'project_id' => $project->id
+        ]);
+
+        return response()->json([
+            'message' => 'Failed to send invitation',
+            'error' => $e->getMessage()
+        ], 500);
     }
+}
 
     
 
@@ -171,7 +186,6 @@ class ProjectController extends Controller
     {
         $user = Auth::user();
         
-        // Check if user owns the project or is an accepted member
         if ($project->user_id !== $user->id && !$project->members()->where('user_id', $user->id)->where('status', 'accepted')->exists()) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
@@ -187,7 +201,6 @@ class ProjectController extends Controller
     {
         $user = Auth::user();
         
-        // Only project owner can view invitations
         if ($project->user_id !== $user->id) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
@@ -198,4 +211,41 @@ class ProjectController extends Controller
 
         return response()->json($invitations);
     }
+    public function acceptInvitation($token)
+{
+    $invitation = ProjectInvitation::where('token', $token)->first();
+
+    if (!$invitation) {
+        return response()->json(['message' => 'Invalid or expired invitation.'], 404);
+    }
+
+    if ($invitation->status === 'accepted') {
+        return response()->json(['message' => 'Invitation already accepted.'], 400);
+    }
+
+    $invitation->status = 'accepted';
+    $invitation->accepted_at = now();
+    $invitation->save();
+
+    if ($invitation->user_id) {
+        $exists = DB::table('project_members')
+                    ->where('project_id', $invitation->project_id)
+                    ->where('user_id', $invitation->user_id)
+                    ->exists();
+
+        if (!$exists) {
+            DB::table('project_members')->insert([
+                'project_id' => $invitation->project_id,
+                'user_id' => $invitation->user_id,
+                'status' => 'joined',
+                'joined_at' => now(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+    }
+
+    return response()->json(['message' => 'Invitation accepted.']);
+}
+
 }

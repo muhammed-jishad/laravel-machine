@@ -19,15 +19,11 @@ class TaskController extends Controller
     {
         $query = Task::query();
 
-        // Filter by status
         if ($request->has('status')) {
             $query->where('status', $request->status);
         }
 
-        // Filter by assigned user
-        
-
-        // Sort by due date
+    
         $sortDirection = $request->input('sort_direction', 'asc');
 
         return response()->json($query->get());
@@ -38,6 +34,7 @@ class TaskController extends Controller
         $validated = $request->validate([
             'title' => 'required|string|max:255',
             'description' => 'required|string',
+            'project_id'=>'required|int',
             'status' => 'required|in:pending,in_progress,completed',
            
         ]);
@@ -69,21 +66,41 @@ class TaskController extends Controller
         $task->delete();
         return response()->json(null, 204);
     }
+    public function assignToUser(Request $request, Task $task)
+{
+    $request->validate([
+        'user_id' => 'required|exists:users,id',
+    ]);
 
-    // Comment related methods
-    public function addComment(Request $request, Task $task)
-    {
-        $validated = $request->validate([
-            'content' => 'required|string'
-        ]);
+    $task->assigned_user_id = $request->user_id;
+    $task->save();
 
-        $comment = $task->comments()->create([
-            'content' => $validated['content'],
-            'user_id' => Auth::id()
-        ]);
+    return response()->json([
+        'message' => 'Task assigned successfully.',
+        'task' => $task->load('assignedUser') 
+    ]);
+}
 
-        return response()->json($comment->load('user'), 201);
+    public function addComment(Request $request, $taskId)
+{
+    $task = Task::find($taskId);
+
+    if (!$task) {
+        return response()->json(['message' => 'Task not found.'], 404);
     }
+
+    $validated = $request->validate([
+        'content' => 'required|string'
+    ]);
+
+    $comment = $task->comments()->create([
+        'content' => $validated['content'],
+        'user_id' => Auth::id()
+    ]);
+
+    return response()->json($comment->load('user'), 201);
+}
+
 
     public function getComments(Task $task)
     {
@@ -97,6 +114,6 @@ class TaskController extends Controller
         }
 
         $comment->delete();
-        return response()->json(null, 204);
+        return response()->json(['message' => 'Comment deleted successfully.'], 200);
     }
 } 
