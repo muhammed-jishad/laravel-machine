@@ -58,7 +58,6 @@ class ProjectController extends Controller
     {
          $project = Project::find($id);
 
-
     if (!$project) {
         return response()->json(['message' => 'Project not found'], 404);
     }
