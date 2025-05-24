@@ -41,7 +41,14 @@ class AuthController extends Controller
             'token_type' => 'Bearer',
         ], 200);
     }
+public function getUsers()
+{
+    $users = User::select('id', 'name', 'email')->get();
 
+    return response()->json([
+        'users' => $users
+    ]);
+}
     
     public function login(Request $request)
     {

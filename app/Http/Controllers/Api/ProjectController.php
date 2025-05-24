@@ -210,6 +210,17 @@ public function inviteUser(Request $request, Project $project)
 
         return response()->json($invitations);
     }
+    public function userInvitations()
+{
+    $user = Auth::user();
+
+    $invitations = ProjectInvitation::with('project')
+        ->where('email', $user->email)
+        ->orWhere('user_id', $user->id)
+        ->get();
+
+    return response()->json($invitations);
+}
     public function acceptInvitation($token)
 {
     $invitation = ProjectInvitation::where('token', $token)->first();

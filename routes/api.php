@@ -12,6 +12,8 @@ Route::get('/user', function (Request $request) {
 
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
+Route::get('/getUsers', [AuthController::class, 'getUsers']);
+
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
@@ -28,6 +30,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Project invitation routes
     Route::post('/projects/{project}/invite', [ProjectController::class, 'inviteUser']);
+
+    Route::middleware('auth:sanctum')->get('/invitations', [ProjectController::class, 'userInvitations']);
+
     Route::get('/projects/{project}/invitations', [ProjectController::class, 'getInvitations']);
 
     // Task comment routes
